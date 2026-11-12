@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Melting Preços</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<!--CORPO-->
+<header class="top"><div class="wrap">
+  <a class="brand" href="#painel" aria-label="Melting, ir para o painel">
+    <img class="logo logo-claro" src="assets/logo-melting.png" alt="Melting Soluções em Manutenção Industrial">
+    <img class="logo logo-escuro" src="assets/logo-melting-escuro.png" alt="" aria-hidden="true">
+    <span class="brand-sub">Preços e lucro por cliente</span>
+  </a>
+  <button class="search-btn" id="open-search" title="Buscar produto (Ctrl+K)"><span>Buscar produto</span><kbd>Ctrl K</kbd></button>
+  <nav class="tabs" role="tablist" aria-label="Seções">
+    <button role="tab" data-v="painel" aria-selected="true">Painel</button>
+    <button role="tab" data-v="analisar" aria-selected="false">Analisar pedido</button>
+    <button role="tab" data-v="calc" aria-selected="false">Conversor ICMS</button>
+    <button role="tab" data-v="itens" aria-selected="false">Itens</button>
+    <button role="tab" data-v="clientes" aria-selected="false">Clientes</button>
+    <button role="tab" data-v="ajustes" aria-selected="false">Ajustes</button>
+  </nav>
+</div>
+<div class="wrap substatus"><span class="status" id="status">Carregando base…</span><span class="status" id="store-status"></span></div>
+</header>
+
+<main class="wrap">
+  <div id="loading" class="loading"><span class="lbl">Carregando cadastro, compras e clientes</span><div class="bar"></div></div>
+
+  <!-- ============ PAINEL ============ -->
+  <section id="v-painel" class="sect" hidden>
+    <div class="toolbar"><h2>Painel</h2><span class="status" id="p-data"></span></div>
+    <div class="tiles" id="p-tiles"></div>
+    <div class="panel">
+      <div class="toolbar"><h3>Preços de clientes para revisar</h3><button class="btn sm" id="p-rev-xlsx">Exportar Excel</button></div>
+      <p class="hint">Preços salvos cujo custo atual deixou a margem abaixo do mínimo, ou que não são revisados há mais de 180 dias.</p>
+      <div class="tbl" id="p-rev"></div>
+    </div>
+    <div class="cols2">
+      <div class="panel"><div class="toolbar"><h3>Próximos pedidos previstos</h3><span class="hint">pela recorrência de cada código de cliente</span></div><div id="p-prox"></div></div>
+      <div class="panel"><h3>Margem por cliente</h3><div id="p-margens"></div></div>
+    </div>
+    <div class="panel">
+      <div class="toolbar"><h3>Recomendações de estoque e compra</h3><div class="row"><span class="status" id="rec-base"></span><button class="btn sm" id="rec-xlsx">Exportar Excel</button></div></div>
+      <div class="tiles" id="tiles"></div>
+      <p class="note" id="rec-note"></p>
+      <div class="toolbar">
+        <input type="text" id="rq" placeholder="Filtrar por código, descrição ou fornecedor" style="flex:1;min-width:200px" aria-label="Filtrar">
+        <select id="rs" hidden aria-label="Status"></select>
+      </div>
+      <div class="tbl tall" id="rtable"></div>
+    </div>
+  </section>
+
+  <!-- ============ ANALISAR ============ -->
+  <section id="v-analisar" class="grid" hidden>
+    <aside class="panel">
+      <h3>Entrada</h3>
+      <label class="drop" id="drop" for="file">
+        <strong>Soltar PDF aqui</strong>
+        <span class="hint">ou clique para escolher. Pedido de compra, cotação ou RFQ.</span>
+        <input type="file" id="file" accept="application/pdf,.pdf,.txt" hidden>
+      </label>
+      <label class="lbl" for="txt">Ou cole o texto (WhatsApp, e-mail, anotação de pedido verbal)</label>
+      <textarea id="txt" placeholder="Ex.:&#10;2 correias A-50&#10;5V1500 - 4 pç&#10;correia sincronizadora 800 8M 30&#10;Siegling GG-14N 1 un"></textarea>
+      <div class="row">
+        <button class="btn pri" id="go">Analisar</button>
+        <button class="btn" id="ia" hidden title="Usa a Claude para separar os itens de um texto bagunçado">Ler com IA</button>
+        <button class="btn" id="ex">Exemplo P&amp;G</button>
+      </div>
+      <p class="hint" id="inhint">A leitura é automática para pedidos no formato SAP (P&amp;G e similares) e para listas de uma linha por item. Para textos mais soltos, use Ler com IA.</p>
+    </aside>
+    <div class="sect" style="min-width:0">
+      <div class="panel" id="doc" hidden>
+        <div class="toolbar"><h2 id="doc-title">Pedido</h2><span class="chip" id="doc-fmt"></span></div>
+        <div class="dochead">
+          <label><span class="lbl">Cliente</span><input type="text" id="d-cliente" list="cli-opts" autocomplete="off"><datalist id="cli-opts"></datalist></label>
+          <label><span class="lbl">Documento</span><input type="text" id="d-documento"></label>
+          <label><span class="lbl">Data</span><input type="date" id="d-data"></label>
+          <label><span class="lbl">Canal</span><select id="d-canal"><option>PDF</option><option>WhatsApp</option><option>E-mail</option><option>Verbal</option><option>Portal</option></select></label>
+        </div>
+        <div class="conv-bar" role="group" aria-label="Conversor ICMS do pedido">
+          <span class="lbl">Conversor ICMS</span>
+          <label><span class="lbl">UF do cliente</span><select id="d-uf"></select></label>
+          <label><span class="lbl">Parâmetro</span><select id="d-param"><option>CONSUMO</option><option>INDUSTRIALIZAÇÃO</option></select></label>
+          <label><span class="lbl">Desconto padrão (%)</span><input type="text" id="d-desc" inputmode="decimal" style="width:90px"></label>
+          <label><span class="lbl">Preço no pedido vem</span><select id="d-tipo"><option value="COM IMPOSTOS">com ICMS (sem IPI)</option><option value="SEM IMPOSTOS">sem impostos</option><option value="SEM ICMS">sem ICMS</option><option value="IPI INCLUSO">com ICMS e IPI</option></select></label>
+          <span class="hint" id="d-conv-info"></span>
+        </div>
+        <div class="cli-box" id="cli-box"></div>
+        <div class="doc-sum" id="doc-sum"></div>
+        <div class="decide">
+          <button class="btn pri" id="ia-btn">Analisar lucro com IA</button>
+          <button class="btn" id="salvar-precos">Salvar preços no cliente</button>
+          <button class="btn" id="resp-btn">Gerar resposta</button>
+          <button class="btn" id="em-topo">Enviar e-mail</button>
+          <button class="btn" id="d-xlsx">Exportar Excel</button>
+          <label class="row hint toggle" for="compacto"><input type="checkbox" id="compacto"> Modo compacto</label>
+        </div>
+        <div class="ia-box" id="ia-box" hidden></div>
+        <div class="resp" id="resp" hidden>
+          <div class="resp-precos">
+            <span class="lbl">Preços da proposta</span>
+            <div class="row">
+              <select id="resp-base" aria-label="Preço base">
+                <option value="proposto">Manter o preço proposto de cada item</option>
+                <option value="tabela">Base 1 sem desconto (convertida para a UF)</option>
+                <option value="sugerido">Base 1 com o desconto padrão do cliente</option>
+                <option value="cliente">Preço que veio no pedido do cliente</option>
+                <option value="tabcli">Tabela de preços deste cliente</option>
+                <option value="lucro">Melhor opção de lucro de cada item</option>
+              </select>
+              <button class="btn sm" id="resp-aplicar">Aplicar a todos os itens</button>
+              <span class="hint" id="resp-base-info"></span>
+            </div>
+          </div>
+          <div class="envio">
+            <div class="form2">
+              <label for="em-para"><span class="lbl">Enviar para (e-mail do cliente)</span><input type="text" id="em-para" inputmode="email" placeholder="compras@cliente.com.br" autocomplete="email"></label>
+              <label for="em-cc"><span class="lbl">Cópia (opcional)</span><input type="text" id="em-cc" inputmode="email" placeholder="separe vários com vírgula"></label>
+              <label for="em-num"><span class="lbl">Nº da proposta</span><input type="text" id="em-num"></label>
+              <label for="em-assunto"><span class="lbl">Assunto</span><input type="text" id="em-assunto"></label>
+            </div>
+            <div class="row">
+              <button class="btn" id="pdf-btn">Baixar PDF da proposta</button>
+              <button class="btn pri big" id="em-enviar">Enviar e-mail</button>
+              <span class="hint" id="em-status"></span>
+            </div>
+            <p class="hint" id="em-modo"></p>
+          </div>
+          <div class="row">
+            <label class="row hint" for="resp-fmt">Formato <select id="resp-fmt"><option value="email">E-mail</option><option value="whats">WhatsApp</option></select></label>
+            <label class="row hint toggle" for="resp-sem"><input type="checkbox" id="resp-sem" checked> Listar itens que não atendemos</label>
+            <button class="btn sm" id="resp-copy">Copiar texto</button>
+          </div>
+          <textarea id="resp-txt" aria-label="Texto da resposta"></textarea>
+        </div>
+      </div>
+      <div class="items" id="items"></div>
+    </div>
+  </section>
+
+  <!-- ============ CALCULADORA ============ -->
+  <section id="v-calc" class="sect" hidden>
+    <div class="toolbar"><h2>Conversor ICMS</h2><span class="status" id="k-origem"></span></div>
+    <p class="hint" style="margin-top:-6px">Mesmas regras da planilha conversor_icms_2025: preço = R$ Base 1 (tabela de SP, com 18% de ICMS e 9,25% de PIS/COFINS) com desconto, convertido para a UF do cliente.</p>
+    <div class="calc">
+      <div class="panel">
+        <h3>Cotação</h3>
+        <label class="stack" for="k-busca"><span class="lbl">Buscar produto (preenche Base 1, IPI e origem)</span>
+          <input type="text" id="k-busca" placeholder="Código, apelido ou medida. Ex.: 4834, 5V1000, 510H100" autocomplete="off"></label>
+        <div id="k-sug" class="search-r"></div>
+        <div id="k-prod" class="hint"></div>
+        <div class="form2">
+          <label for="k-base"><span class="lbl">R$ Base 1</span><input type="text" id="k-base" inputmode="decimal" class="big"></label>
+          <label for="k-desc"><span class="lbl">Desconto (%)</span><input type="text" id="k-desc" inputmode="decimal" class="big"></label>
+          <label for="k-uf"><span class="lbl">UF (cliente)</span><select id="k-uf"></select></label>
+          <label for="k-param"><span class="lbl">Parâmetro</span><select id="k-param"><option>CONSUMO</option><option>INDUSTRIALIZAÇÃO</option></select></label>
+          <label for="k-ori"><span class="lbl">Origem</span><select id="k-ori"><option value="N">Nacional (N)</option><option value="I">Importado (I)</option></select></label>
+          <label for="k-ipi"><span class="lbl">IPI (%)</span><input type="text" id="k-ipi" inputmode="decimal"></label>
+          <label for="k-qtd"><span class="lbl">Quantidade</span><input type="text" id="k-qtd" inputmode="decimal"></label>
+        </div>
+        <div class="row k-acoes"><button class="btn pri" id="k-copy">Copiar preço c/ ICMS</button><button class="btn pri" id="k-aplicar" hidden>Aplicar ao item do pedido</button><button class="btn" id="k-limpar">Limpar</button></div>
+      </div>
+      <div class="sect">
+        <div class="panel result">
+          <div class="k-vazio" id="k-vazio"><span class="lbl">Resultado</span><p>Informe a R$ Base 1 (ou busque o produto), o desconto e a UF do cliente.</p></div>
+          <div id="k-res" hidden>
+            <p class="k-frase" id="k-frase"></p>
+            <div class="cv-grid k-grid" id="k-precos"></div>
+            <div class="tbl" id="k-tot"></div>
+            <div id="k-lucro"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Reversão de preço</h3>
+          <p class="hint">Preço que o cliente pediu ou pratica → preço equivalente com 18% (SP) e o desconto sobre a Base 1. Usa a UF, o parâmetro, a origem e o IPI da cotação ao lado.</p>
+          <div class="form2">
+            <label for="k-tipo"><span class="lbl">Tipo de preço</span><select id="k-tipo"><option value="COM IMPOSTOS">Com impostos (c/ ICMS, sem IPI)</option><option value="SEM IMPOSTOS">Sem impostos</option><option value="SEM ICMS">Sem ICMS</option><option value="IPI INCLUSO">Com ICMS e IPI</option></select></label>
+            <label for="k-pcli"><span class="lbl">Preço (cliente)</span><input type="text" id="k-pcli" inputmode="decimal" class="big"></label>
+          </div>
+          <div id="k-rev"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ITENS ============ -->
+  <section id="v-itens" class="sect" hidden>
+    <div class="panel">
+      <div class="toolbar"><h2>Itens</h2><div class="row"><span class="hint" id="it-cont"></span><button class="btn sm" id="it-xlsx">Exportar Excel</button></div></div>
+      <div class="row it-filtros">
+        <input type="text" id="it-q" placeholder="Buscar por código, descrição ou medida (ex.: 5V1000, 800 8M 30, mangueira 1/2)" aria-label="Buscar item" style="flex:1;min-width:220px">
+        <select id="it-f" aria-label="Filtrar itens">
+          <option value="comprados">Mais comprados</option>
+          <option value="giro">Itens de giro</option>
+          <option value="saldo">Com saldo em estoque</option>
+          <option value="rapidos">Entrega em até 2 dias úteis</option>
+          <option value="lentos">Lead time acima de 15 dias úteis</option>
+          <option value="confirmar">Prazo a confirmar</option>
+          <option value="precos">Com preço salvo em cliente</option>
+        </select>
+      </div>
+      <div class="row it-conv"><span class="lbl">Preços para</span>
+        <label class="row hint" for="it-uf">UF <select id="it-uf"></select></label>
+        <label class="row hint" for="it-param">Parâmetro <select id="it-param"><option>CONSUMO</option><option>INDUSTRIALIZAÇÃO</option></select></label>
+        <label class="row hint" for="it-desc">Desconto (%) <input type="text" id="it-desc" inputmode="decimal" style="width:70px"></label>
+      </div>
+      <p class="hint">Preço pelo Conversor ICMS (R$ Base 1 com desconto, na UF escolhida). Clique num item para ver custo de referência, preços, markup, prazo e lead time.</p>
+      <div class="tbl"><table class="it-tab"><thead><tr><th>Código</th><th>Descrição</th><th class="n">Base 1</th><th class="n">Preço c/ ICMS</th><th class="n">Custo ref.</th><th class="n">Markup</th><th class="n">Lead time</th><th class="n">Saldo</th></tr></thead><tbody id="it-rows"></tbody></table></div>
+      <div class="row" style="justify-content:center"><button class="btn sm" id="it-mais" hidden>Mostrar mais</button></div>
+    </div>
+    <div class="panel it-det" id="it-det" hidden tabindex="-1"></div>
+  </section>
+
+  <!-- ============ CLIENTES ============ -->
+  <section id="v-clientes" class="grid" hidden>
+    <aside class="panel">
+      <div class="toolbar"><h3>Clientes</h3><button class="btn sm pri" id="c-novo">Novo cliente</button></div>
+      <input type="text" id="c-q" placeholder="Buscar cliente" aria-label="Buscar cliente">
+      <div id="c-list" class="clist"></div>
+      <div class="row"><label class="btn sm pri" for="c-imp">Importar Excel</label><input type="file" id="c-imp" accept=".xlsx,.xls,.csv,.txt" hidden><button class="btn sm" id="c-xlsx">Exportar todos (Excel)</button><button class="btn sm" id="c-modelo">Baixar modelo</button></div>
+      <div id="c-imp-prev" class="imp-prev" hidden></div>
+    </aside>
+    <div class="sect" id="c-det" style="min-width:0"></div>
+  </section>
+
+  <!-- ============ AJUSTES ============ -->
+  <section id="v-ajustes" class="sect" hidden>
+    <div class="toolbar"><h2>Ajustes</h2><div class="row"><button class="btn sm" id="aj-reset">Voltar ao padrão</button><button class="btn sm pri" id="aj-save">Salvar ajustes</button></div></div>
+    <div class="cols2">
+      <div class="panel">
+        <h3>Conversor ICMS</h3>
+        <p class="hint">Regras da planilha conversor_icms_2025. Cada cliente pode ter UF, parâmetro e desconto próprios (aba Clientes).</p>
+        <div class="form2">
+          <label><span class="lbl">UF padrão</span><select id="aj-cuf"></select></label>
+          <label><span class="lbl">Parâmetro padrão</span><select id="aj-cpar"><option>CONSUMO</option><option>INDUSTRIALIZAÇÃO</option></select></label>
+          <label><span class="lbl">Desconto padrão (%)</span><input type="text" id="aj-cdesc" inputmode="decimal"></label>
+          <label><span class="lbl">Preço no pedido vem</span><select id="aj-ctipo"><option value="COM IMPOSTOS">com ICMS (sem IPI)</option><option value="SEM IMPOSTOS">sem impostos</option><option value="SEM ICMS">sem ICMS</option><option value="IPI INCLUSO">com ICMS e IPI</option></select></label>
+          <label><span class="lbl">PIS/COFINS (%)</span><input type="text" id="aj-cpis" inputmode="decimal"></label>
+          <label><span class="lbl">ICMS embutido na Base 1 (%)</span><input type="text" id="aj-cicms" inputmode="decimal"></label>
+        </div>
+        <p class="hint" id="aj-cfator"></p>
+        <details><summary>ICMS por UF (nacional · importado)</summary><div class="in"><div class="tbl" id="aj-cufs"></div></div></details>
+      </div>
+      <div class="panel">
+        <h3>Markup (alerta de lucro)</h3>
+        <p class="hint">O preço sai da Base 1. O markup (preço sem impostos ÷ custo com IPI) serve para avisar quando o desconto come o lucro. O markup por categoria só define o preço de itens sem Base 1 no cadastro.</p>
+        <div class="form2">
+          <label><span class="lbl">Markup padrão (sem Base 1)</span><input type="text" id="aj-mk" inputmode="decimal"></label>
+          <label><span class="lbl">Markup mínimo (alerta)</span><input type="text" id="aj-mkmin" inputmode="decimal"></label>
+        </div>
+        <p class="hint">Por categoria do cadastro, só para itens sem Base 1. Vazio usa o padrão.</p>
+        <div class="tbl" id="aj-cats"></div>
+      </div>
+      <div class="sect">
+        <div class="panel">
+          <h3>Proposta</h3>
+          <div class="form2">
+            <label><span class="lbl">Validade (dias)</span><input type="text" id="aj-val" inputmode="numeric"></label>
+            <label><span class="lbl">Pagamento</span><input type="text" id="aj-pag"></label>
+            <label><span class="lbl">Frete</span><input type="text" id="aj-frete"></label>
+            <label><span class="lbl">Dias somados ao prazo do fornecedor</span><input type="text" id="aj-pzx" inputmode="numeric"></label>
+            <label><span class="lbl">Prazo quando não há cadastro (dias)</span><input type="text" id="aj-pzp" inputmode="numeric"></label>
+          </div>
+          <label class="stack"><span class="lbl">Assinatura</span><textarea id="aj-ass" style="min-height:70px"></textarea></label>
+        </div>
+        <div class="panel">
+          <h3>Dados da Melting no PDF</h3>
+          <div class="form2">
+            <label><span class="lbl">Razão social</span><input type="text" id="aj-enome"></label>
+            <label><span class="lbl">CNPJ</span><input type="text" id="aj-ecnpj"></label>
+            <label><span class="lbl">Endereço</span><input type="text" id="aj-eend"></label>
+            <label><span class="lbl">Telefone</span><input type="text" id="aj-etel"></label>
+            <label><span class="lbl">E-mail comercial</span><input type="text" id="aj-email-c"></label>
+            <label><span class="lbl">Site</span><input type="text" id="aj-esite"></label>
+          </div>
+          <label class="stack"><span class="lbl">Observações padrão da proposta</span><textarea id="aj-obs" style="min-height:60px"></textarea></label>
+        </div>
+        <div class="panel">
+          <h3>Saldo de estoque</h3>
+          <p class="hint">Importe um CSV ou Excel com o código do produto e o saldo. O sistema passa a mostrar saldo, cobertura em dias e "atende do estoque" nas análises.</p>
+          <div class="row"><label class="btn sm" for="saldo-file">Importar saldo (CSV/Excel)</label><input type="file" id="saldo-file" accept=".csv,.txt,.xlsx,.xls" hidden><button class="btn sm" id="saldo-clear" hidden>Remover saldo</button><span class="hint" id="saldo-info"></span></div>
+        </div>
+        <div class="panel">
+          <h3>Aprendizado da leitura de pedidos</h3>
+          <p class="hint">O sistema aprende com as suas correções: "não é produto" num item, "Incluir como item" numa linha ignorada e o produto que você escolhe para cada texto. Vale para os próximos pedidos e fica no mesmo banco dos clientes.</p>
+          <p class="hint" id="ap-info"></p>
+          <div class="row"><button class="btn sm" id="ap-xlsx">Exportar Excel</button><button class="btn sm" id="ap-limpar">Apagar aprendizado</button></div>
+          <div class="row" id="ap-confirm" hidden><span class="hint">Apagar tudo o que o sistema aprendeu?</span><button class="btn sm pri" id="ap-ok">Apagar</button><button class="btn sm" id="ap-nao">Cancelar</button></div>
+        </div>
+        <div class="panel">
+          <h3>Inteligência artificial</h3>
+          <p class="hint" id="ia-status">Verificando…</p>
+          <p class="hint">No claude.ai a análise usa a sua conta, sem configuração. Na versão baixada, ela passa pela função <span class="mono">supabase/functions/analisar-pedido</span>, que guarda a chave da API da Anthropic no servidor.</p>
+        </div>
+        <div class="panel">
+          <h3>Banco de clientes compartilhado (Supabase)</h3>
+          <p class="hint">Com o Supabase, o banco de clientes e preços fica numa tabela da empresa e toda a equipe usa os mesmos preços. Crie a tabela com <span class="mono">sql/supabase_schema.sql</span> e os usuários em Authentication.</p>
+          <div class="form2">
+            <label><span class="lbl">URL do projeto</span><input type="text" id="aj-surl" placeholder="https://xxxx.supabase.co"></label>
+            <label><span class="lbl">Chave anon (pública)</span><input type="text" id="aj-skey"></label>
+          </div>
+          <div id="aj-login" class="form2" hidden>
+            <label><span class="lbl">E-mail</span><input type="text" id="aj-email" autocomplete="username"></label>
+            <label><span class="lbl">Senha</span><input type="password" id="aj-senha" autocomplete="current-password"></label>
+          </div>
+          <div class="row"><button class="btn sm" id="aj-entrar" hidden>Entrar</button><button class="btn sm" id="aj-sair" hidden>Sair</button><span class="hint" id="aj-sstatus"></span></div>
+          <div class="row" id="aj-migrar-box" hidden><button class="btn sm pri" id="aj-migrar">Enviar clientes deste navegador para o banco da empresa</button><span class="hint" id="aj-migrar-info"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- busca rápida -->
+<div class="modal" id="search" hidden role="dialog" aria-modal="true" aria-label="Buscar produto">
+  <div class="modal-box">
+    <input type="text" id="search-q" placeholder="Código, apelido, medida ou descrição (ex.: 5V1500, 225 3M 9, 283487)" autocomplete="off">
+    <div id="search-r" class="search-r"></div>
+    <p class="hint">Enter abre o primeiro resultado · Esc fecha</p>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<!--/CORPO-->
+
+<script src="js/config.js"></script>
+<script src="js/util.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/icms.js"></script>
+<script src="js/lucro.js"></script>
+<script src="js/sugestoes.js"></script>
+<script src="assets/logo-data.js"></script>
+<script src="js/proposta.js"></script>
+<script src="js/exemplo.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
